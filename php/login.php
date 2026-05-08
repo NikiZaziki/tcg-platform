@@ -1,83 +1,40 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
+// Redirect wenn bereits eingeloggt
+requireGuest();
 
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
+$error = '';
 
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect to dashboard if already logged in
-if ($user && !isset($user['error'])) {
-    header('Location: dashboard.php');
-    exit;
-}
-
-// Handle form submissions
+// Handle Login
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'login':
-                $result = apiCall('/auth/login', 'POST', [
-                    'username' => $_POST['username'] ?? '',
-                    'password' => $_POST['password'] ?? ''
-                ]);
+    $username = trim($_POST['username'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
-                if (isset($result['access_token'])) {
-                    $_SESSION['token'] = $result['access_token'];
-                    $_SESSION['user'] = $result['user'];
-                    header('Location: dashboard.php');
-                    exit;
-                } else {
-                    $error = $result['error'] ?? 'Login fehlgeschlagen';
-                }
-                break;
+    if (empty($username) || empty($password)) {
+        $error = 'Bitte alle Felder ausfüllen';
+    } else {
+        logError("Login attempt for user: $username");
+
+        $result = apiCall('/auth/login', 'POST', [
+            'email' => $username,
+            'password' => $password
+        ]);
+
+        logError("Login result: " . json_encode($result));
+
+        if (isset($result['token'])) {
+            $_SESSION['token'] = $result['token'];
+            $_SESSION['user'] = $result['user'];
+            logError("Login successful for user: $username");
+            header('Location: dashboard.php');
+            exit;
+        } else {
+            $error = $result['error'] ?? 'Login fehlgeschlagen';
+            logError("Login failed: $error");
         }
     }
 }
-
-$error = $error ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -106,8 +63,8 @@ $error = $error ?? '';
             <?php endif; ?>
             <form method="POST">
                 <div class="form-group">
-                    <label>Benutzername</label>
-                    <input type="text" name="username" required>
+                    <label>Email oder Benutzername</label>
+                    <input type="text" name="username" required value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label>Passwort</label>

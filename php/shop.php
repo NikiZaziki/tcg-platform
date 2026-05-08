@@ -1,60 +1,10 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
+// Login erforderlich
+$user = requireLogin();
 
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
-
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect if not logged in
-if (!$user) {
-    header('Location: login.php');
-    exit;
-}
-
-// Get shop data
+// Shop Daten laden
 $packs = apiCall('/shop/packs', 'GET', null, $_SESSION['token']);
 $orders = apiCall('/shop/orders', 'GET', null, $_SESSION['token']);
 
@@ -107,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <h2>Booster Packs</h2>
-            <?php if ($packs && !isset($packs['error'])): ?>
+            <?php if ($packs && is_array($packs) && count($packs) > 0): ?>
                 <div class="grid">
                     <?php foreach ($packs as $pack): ?>
                     <div class="card" style="text-align: center;">
@@ -163,12 +113,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     </tr>
                 </thead>
                 <tbody>
-                    <?php if ($orders && !isset($orders['error'])): ?>
+                    <?php if ($orders && is_array($orders) && count($orders) > 0): ?>
                         <?php foreach ($orders as $order): ?>
                         <tr>
                             <td><?php echo htmlspecialchars($order['id'] ?? 'Unknown'); ?></td>
                             <td><?php echo htmlspecialchars($order['createdAt'] ?? 'Unknown'); ?></td>
-                            <td><span style="color: <?php echo $order['status'] === 'completed' ? '#4ade80' : '#fbbf24'; ?>;"><?php echo htmlspecialchars($order['status'] ?? 'Unknown'); ?></span></td>
+                            <td><span style="color: <?php echo ($order['status'] ?? '') === 'completed' ? '#4ade80' : '#fbbf24'; ?>;"><?php echo htmlspecialchars($order['status'] ?? 'Unknown'); ?></span></td>
                             <td><a href="#" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Details</a></td>
                         </tr>
                         <?php endforeach; ?>

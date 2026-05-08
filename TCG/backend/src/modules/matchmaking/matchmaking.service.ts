@@ -6,7 +6,7 @@ interface QueueEntry {
   username: string;
   eloRating: number;
   tcgId: string;
-  mode: string;
+  mode: string; // 'ranked' or 'unranked'
   deckId: string;
   joinedAt: Date;
 }
@@ -21,6 +21,11 @@ export class MatchmakingService {
   }
 
   async joinQueue(userId: string, tcgId: string, mode: string, deckId: string) {
+    // Validate mode
+    if (!['ranked', 'unranked'].includes(mode)) {
+      throw new BadRequestException("Invalid mode. Must be 'ranked' or 'unranked'");
+    }
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
     });
@@ -31,6 +36,31 @@ export class MatchmakingService {
 
     if (this.queue.has(userId)) {
       throw new BadRequestException("User already in queue");
+    }
+
+    // Validate deck exists and belongs to user
+    const deck = await this.prisma.deck.findFirst({
+      where: {
+        id: deckId,
+        userId: userId,
+        tcgId: tcgId,
+      },
+    });
+
+    if (!deck) {
+      throw new BadRequestException("Deck not found or invalid");
+    }
+
+    // For ranked matches, check if deck has enough cards
+    if (mode === 'ranked') {
+      const deckCards = await this.prisma.deckCard.findMany({
+        where: { deckId: deckId },
+      });
+
+      const totalCards = deckCards.reduce((sum, card) => sum + card.quantity, 0);
+      if (totalCards < 10) {
+        throw new BadRequestException("Deck must have at least 10 cards for ranked matches");
+      }
     }
 
     const entry: QueueEntry = {
@@ -47,8 +77,9 @@ export class MatchmakingService {
 
     return {
       success: true,
-      message: "Joined matchmaking queue",
+      message: `Joined ${mode} matchmaking queue`,
       position: this.queue.size,
+      mode,
     };
   }
 
@@ -69,11 +100,20 @@ export class MatchmakingService {
     const isInQueue = this.queue.has(userId);
     const position = isInQueue ? Array.from(this.queue.keys()).indexOf(userId) + 1 : -1;
 
+    const entry = this.queue.get(userId);
+
     return {
       isInQueue,
       position,
       queueSize: this.queue.size,
+      mode: entry?.mode || null,
+      estimatedWaitTime: this.calculateEstimatedWaitTime(position),
     };
+  }
+
+  private calculateEstimatedWaitTime(position: number): number {
+    // Estimate based on position (5 seconds per position)
+    return position * 5;
   }
 
   private startMatchmaking() {
@@ -84,18 +124,28 @@ export class MatchmakingService {
 
   private async findMatches() {
     const entries = Array.from(this.queue.values());
-    
+
+    // Separate by mode
+    const rankedEntries = entries.filter(e => e.mode === 'ranked');
+    const unrankedEntries = entries.filter(e => e.mode === 'unranked');
+
+    // Find matches for each mode
+    this.findMatchesForMode(rankedEntries, 'ranked');
+    this.findMatchesForMode(unrankedEntries, 'unranked');
+  }
+
+  private findMatchesForMode(entries: QueueEntry[], mode: string) {
     for (let i = 0; i < entries.length; i++) {
       for (let j = i + 1; j < entries.length; j++) {
         const player1 = entries[i];
         const player2 = entries[j];
 
         if (this.canMatch(player1, player2)) {
-          await this.createMatch(player1, player2);
-          
+          this.createMatch(player1, player2);
+
           this.queue.delete(player1.userId);
           this.queue.delete(player2.userId);
-          
+
           break;
         }
       }
@@ -111,8 +161,14 @@ export class MatchmakingService {
       return false;
     }
 
-    const eloDifference = Math.abs(player1.eloRating - player2.eloRating);
-    return eloDifference <= 100;
+    // For ranked matches, use ELO-based matching
+    if (player1.mode === 'ranked') {
+      const eloDifference = Math.abs(player1.eloRating - player2.eloRating);
+      return eloDifference <= 100;
+    }
+
+    // For unranked matches, match anyone
+    return true;
   }
 
   private async createMatch(player1: QueueEntry, player2: QueueEntry) {
@@ -132,6 +188,7 @@ export class MatchmakingService {
             id: true,
             username: true,
             eloRating: true,
+            rankTier: true,
           },
         },
         player2: {
@@ -139,6 +196,25 @@ export class MatchmakingService {
             id: true,
             username: true,
             eloRating: true,
+            rankTier: true,
+          },
+        },
+        deck1: {
+          include: {
+            cards: {
+              include: {
+                card: true,
+              },
+            },
+          },
+        },
+        deck2: {
+          include: {
+            cards: {
+              include: {
+                card: true,
+              },
+            },
           },
         },
       },

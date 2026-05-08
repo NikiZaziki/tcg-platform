@@ -1,60 +1,10 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
+// Login erforderlich
+$user = requireLogin();
 
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
-
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect if not logged in
-if (!$user) {
-    header('Location: login.php');
-    exit;
-}
-
-// Get trades data
+// Trades laden
 $trades = apiCall('/trades', 'GET', null, $_SESSION['token']);
 
 // Handle form submissions
@@ -117,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <h2>Aktive</h2>
-            <?php if ($trades && !isset($trades['error'])): ?>
+            <?php if ($trades && is_array($trades) && count($trades) > 0): ?>
                 <table>
                     <thead>
                         <tr>
@@ -142,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <?php endforeach; ?>
                             </td>
                             <td>
-                                <?php if ($trade['status'] === 'pending'): ?>
+                                <?php if (($trade['status'] ?? '') === 'pending'): ?>
                                     <form method="POST" style="display: inline;">
                                         <input type="hidden" name="action" value="accept">
                                         <input type="hidden" name="tradeId" value="<?php echo htmlspecialchars($trade['id'] ?? ''); ?>">
@@ -153,9 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <input type="hidden" name="tradeId" value="<?php echo htmlspecialchars($trade['id'] ?? ''); ?>">
                                         <button type="submit" class="btn btn-secondary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">Ablehnen</button>
                                     </form>
-                                <?php elseif ($trade['status'] === 'accepted'): ?>
+                                <?php elseif (($trade['status'] ?? '') === 'accepted'): ?>
                                     <span style="color: #4ade80;">Angenommen</span>
-                                <?php elseif ($trade['status'] === 'rejected'): ?>
+                                <?php elseif (($trade['status'] ?? '') === 'rejected'): ?>
                                     <span style="color: #f87171;">Abgelehnt</span>
                                 <?php endif; ?>
                             </td>

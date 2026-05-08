@@ -1,72 +1,16 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
+// Login erforderlich
+$user = requireLogin();
 
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
+// Get deck ID from URL
+$deckId = $_GET['id'] ?? null;
 
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect if not logged in
-if (!$user) {
-    header('Location: login.php');
-    exit;
-}
-
-// Get match ID from URL
-$matchId = $_GET['id'] ?? null;
-
-// Get match data
-$match = null;
-if ($matchId) {
-    $match = apiCall('/matches/' . $matchId, 'GET', null, $_SESSION['token']);
-}
-
-// Get match history
-$history = null;
-if ($matchId) {
-    $history = apiCall('/matches/' . $matchId . '/history', 'GET', null, $_SESSION['token']);
+// Get deck data
+$deck = null;
+if ($deckId) {
+    $deck = apiCall('/decks/' . $deckId, 'GET', null, $_SESSION['token']);
 }
 ?>
 <!DOCTYPE html>
@@ -74,7 +18,7 @@ if ($matchId) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Match testen - TCG Platform</title>
+    <title>Deck testen - TCG Platform</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -86,7 +30,7 @@ if ($matchId) {
                 <a href="dashboard.php">Dashboard</a>
                 <a href="collection.php">Collection</a>
                 <a href="decks.php" class="active">Decks</a>
-                <a href="matches.php" class="active">Matches</a>
+                <a href="matches.php">Matches</a>
                 <a href="trading.php">Trading</a>
                 <a href="shop.php">Shop</a>
                 <a href="rewards.php">Rewards</a>
@@ -96,66 +40,54 @@ if ($matchId) {
     </nav>
 
     <div class="container">
-        <?php if ($match && !isset($match['error'])): ?>
+        <?php if ($deck && !isset($deck['error'])): ?>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-                <h1>Match testen: <?php echo htmlspecialchars($match['id'] ?? 'Unknown'); ?></h1>
-                <a href="matches.php" class="btn btn-secondary">Zurück</a>
+                <h1>Deck testen: <?php echo htmlspecialchars($deck['name'] ?? 'Unknown'); ?></h1>
+                <a href="decks.php" class="btn btn-secondary">Zurück</a>
             </div>
 
             <div class="card">
-                <h2>Match Details</h2>
-                <p><strong>Gegner:</strong> <?php echo htmlspecialchars($match['opponent'] ?? 'Unknown'); ?></p>
-                <p><strong>Deck:</strong> <?php echo htmlspecialchars($match['deck'] ?? 'Unknown'); ?></p>
-                <p><strong>Status:</strong> <?php echo htmlspecialchars($match['status'] ?? 'Unknown'); ?></p>
+                <h2>Deck Informationen</h2>
+                <p><strong>Name:</strong> <?php echo htmlspecialchars($deck['name'] ?? 'Unknown'); ?></p>
+                <p><strong>Karten:</strong> <?php echo count($deck['cards'] ?? []); ?>/60</p>
+                <p><strong>TCG ID:</strong> <?php echo htmlspecialchars($deck['tcgId'] ?? 'Unknown'); ?></p>
             </div>
 
             <div class="card">
-                <h2>Match History</h2>
-                <?php if ($history && !isset($history['error'])): ?>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Runde</th>
-                            <th>Aktion</th>
-                            <th>Zeit</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($history as $move): ?>
-                        <tr>
-                            <td><?php echo htmlspecialchars($move['round'] ?? 'Unknown'); ?></td>
-                            <td><?php echo htmlspecialchars($move['action'] ?? 'Unknown'); ?></td>
-                            <td><?php echo htmlspecialchars($move['timestamp'] ?? 'Unknown'); ?></td>
-                        </tr>
+                <h2>Karten im Deck</h2>
+                <div class="grid">
+                    <?php if ($deck['cards'] && is_array($deck['cards']) && count($deck['cards']) > 0): ?>
+                        <?php foreach ($deck['cards'] as $card): ?>
+                        <div class="card" style="text-align: center;">
+                            <div style="width: 100%; height: 150px; background: linear-gradient(135deg, #1a1a2e, #16213e); border-radius: 0.5rem; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; font-size: 3rem;">
+                                🃏
+                            </div>
+                            <h3><?php echo htmlspecialchars($card['name'] ?? 'Unknown'); ?></h3>
+                            <p style="color: #a0a0a0; margin-bottom: 0.5rem;"><?php echo htmlspecialchars($card['rarity'] ?? 'Common'); ?></p>
+                            <p style="color: #e94560; margin-bottom: 0.5rem;">x<?php echo $card['quantity'] ?? 1; ?></p>
+                        </div>
                         <?php endforeach; ?>
-                    </tbody>
-                </table>
-                <?php else: ?>
-                <p>Noch keine Spielzüge in diesem Match.</p>
-                <?php endif; ?>
+                    <?php else: ?>
+                        <p>Keine Karten im Deck.</p>
+                    <?php endif; ?>
+                </div>
             </div>
 
             <div class="card">
                 <h2>Aktionen</h2>
                 <div style="display: flex; gap: 1rem;">
-                    <button class="btn btn-primary" onclick="submitMove()">Zug machen</button>
-                    <button class="btn btn-secondary" onclick="endMatch()">Match beenden</button>
+                    <a href="deck-edit.php?id=<?php echo htmlspecialchars($deckId ?? ''); ?>" class="btn btn-primary">Deck bearbeiten</a>
+                    <button class="btn btn-secondary" onclick="startMatch()">Match starten</button>
                 </div>
             </div>
         <?php else: ?>
-            <p>Match nicht gefunden.</p>
+            <p>Deck nicht gefunden.</p>
         <?php endif; ?>
     </div>
 
     <script>
-    function submitMove() {
-        alert('Zug machen Funktion - Hier würde die API aufgerufen werden');
-    }
-
-    function endMatch() {
-        if (confirm('Möchtest du das Match wirklich beenden?')) {
-            alert('Match beenden Funktion - Hier würde die API aufgerufen werden');
-        }
+    function startMatch() {
+        alert('Match starten Funktion - Hier würde die API aufgerufen werden');
     }
     </script>
 </body>

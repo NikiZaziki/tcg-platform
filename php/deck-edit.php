@@ -1,58 +1,8 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
-
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
-
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect if not logged in
-if (!$user) {
-    header('Location: login.php');
-    exit;
-}
+// Login erforderlich
+$user = requireLogin();
 
 // Get deck ID from URL
 $deckId = $_GET['id'] ?? null;
@@ -153,7 +103,7 @@ if ($deckId) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if ($deck['cards'] && !isset($deck['cards']['error'])): ?>
+                        <?php if ($deck['cards'] && is_array($deck['cards']) && count($deck['cards']) > 0): ?>
                             <?php foreach ($deck['cards'] as $card): ?>
                             <tr>
                                 <td><?php echo htmlspecialchars($card['name'] ?? 'Unknown'); ?></td>
@@ -184,7 +134,7 @@ if ($deckId) {
                         <label>Karte auswählen</label>
                         <select name="cardId" required>
                             <option value="">-- Karte auswählen --</option>
-                            <?php if ($inventory && !isset($inventory['error'])): ?>
+                            <?php if ($inventory && is_array($inventory) && count($inventory) > 0): ?>
                                 <?php foreach ($inventory as $item): ?>
                                     <option value="<?php echo htmlspecialchars($item['id'] ?? ''); ?>">
                                         <?php echo htmlspecialchars($item['name'] ?? 'Unknown'); ?> (x<?php echo $item['quantity'] ?? 1; ?>)
@@ -203,8 +153,8 @@ if ($deckId) {
 
             <div class="card">
                 <h2>Deck Validierung</h2>
-                <?php if ($validation && !isset($validation['error'])): ?>
-                    <p><strong>Status:</strong> <?php echo $validation['valid'] ? 'Valid' : 'Invalid'; ?></p>
+                <?php if ($validation && is_array($validation) && !isset($validation['error'])): ?>
+                    <p><strong>Status:</strong> <?php echo ($validation['valid'] ?? false) ? 'Valid' : 'Invalid'; ?></p>
                     <p><strong>Karten:</strong> <?php echo $validation['cardCount'] ?? 0; ?>/60</p>
                     <p><strong>Regeln:</strong> <?php echo $validation['rules'] ?? 'Keine'; ?></p>
                 <?php else: ?>

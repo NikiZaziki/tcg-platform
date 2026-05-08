@@ -1,84 +1,53 @@
 <?php
-session_start();
+require_once 'config.php';
 
-// API Base URL
-$apiUrl = 'http://45.131.111.6:3000';
+// Redirect wenn bereits eingeloggt
+requireGuest();
 
-// Helper function für API Calls
-function apiCall($endpoint, $method = 'GET', $data = null, $token = null) {
-    global $apiUrl;
+$error = '';
+$success = '';
 
-    $ch = curl_init();
-    $url = $apiUrl . $endpoint;
-
-    $headers = ['Content-Type: application/json'];
-    if ($token) {
-        $headers[] = 'Authorization: Bearer ' . $token;
-    }
-
-    curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-
-    if ($method === 'POST' || $method === 'PUT') {
-        curl_setopt($ch, CURLOPT_POST, true);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-    } elseif ($method === 'DELETE') {
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'DELETE');
-    }
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return json_decode($response, true);
-    } else {
-        return ['error' => 'API Error: ' . $httpCode, 'response' => $response];
-    }
-}
-
-// Check if user is logged in
-$user = null;
-if (isset($_SESSION['token'])) {
-    $user = apiCall('/auth/me', 'GET', null, $_SESSION['token']);
-    if (isset($user['error'])) {
-        unset($_SESSION['token']);
-        unset($_SESSION['user']);
-    }
-}
-
-// Redirect if already logged in
-if ($user) {
-    header('Location: dashboard.php');
-    exit;
-}
-
-// Handle form submissions
+// Handle Registrierung
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['action'])) {
-        switch ($_POST['action']) {
-            case 'register':
-                $result = apiCall('/auth/register', 'POST', [
-                    'username' => $_POST['username'] ?? '',
-                    'email' => $_POST['email'] ?? '',
-                    'password' => $_POST['password'] ?? ''
-                ]);
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $password = trim($_POST['password'] ?? '');
+    $confirmPassword = trim($_POST['confirm_password'] ?? '');
 
-                if (isset($result['access_token'])) {
-                    $_SESSION['token'] = $result['access_token'];
-                    $_SESSION['user'] = $result['user'];
-                    header('Location: dashboard.php');
-                    exit;
-                } else {
-                    $error = $result['error'] ?? 'Registrierung fehlgeschlagen';
-                }
-                break;
+    logError("Registration attempt for email: $email, username: $username");
+
+    // Validierung
+    if (empty($username) || empty($email) || empty($password)) {
+        $error = 'Bitte alle Felder ausfüllen';
+    } elseif (strlen($username) < 3) {
+        $error = 'Benutzername muss mindestens 3 Zeichen lang sein';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $error = 'Ungültige Email-Adresse';
+    } elseif (strlen($password) < 6) {
+        $error = 'Passwort muss mindestens 6 Zeichen lang sein';
+    } elseif ($password !== $confirmPassword) {
+        $error = 'Passwörter stimmen nicht überein';
+    } else {
+        $result = apiCall('/auth/register', 'POST', [
+            'email' => $email,
+            'username' => $username,
+            'password' => $password
+        ]);
+
+        logError("Registration result: " . json_encode($result));
+
+        if (isset($result['token'])) {
+            $_SESSION['token'] = $result['token'];
+            $_SESSION['user'] = $result['user'];
+            logError("Registration successful for user: $username");
+            header('Location: dashboard.php');
+            exit;
+        } else {
+            $error = $result['error'] ?? 'Registrierung fehlgeschlagen';
+            logError("Registration failed: $error");
         }
     }
 }
-
-$error = $error ?? '';
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -108,19 +77,19 @@ $error = $error ?? '';
             <form method="POST">
                 <div class="form-group">
                     <label>Benutzername</label>
-                    <input type="text" name="username" required>
+                    <input type="text" name="username" required minlength="3" value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label>Email</label>
-                    <input type="email" name="email" required>
+                    <input type="email" name="email" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
                 </div>
                 <div class="form-group">
                     <label>Passwort</label>
-                    <input type="password" name="password" required>
+                    <input type="password" name="password" required minlength="6">
                 </div>
                 <div class="form-group">
                     <label>Passwort bestätigen</label>
-                    <input type="password" name="confirm_password" required>
+                    <input type="password" name="confirm_password" required minlength="6">
                 </div>
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Registrieren</button>
             </form>

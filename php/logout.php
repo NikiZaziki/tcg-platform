@@ -1,6 +1,10 @@
 <?php
-session_start();
+require_once 'config.php';
+
+// Session beenden
+session_unset();
 session_destroy();
-header('Location: index.php');
+
+// Redirect zu Login
+header('Location: login.php');
 exit;
-?>
