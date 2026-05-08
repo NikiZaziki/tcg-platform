@@ -1,0 +1,1 @@
+import { Module } from "@nestjs/common";import { TCGService } from "./tcg.service";import { TCGController } from "./tcg.controller";import { PrismaModule } from "../../common/prisma/prisma.module";@Module({imports: [PrismaModule],providers: [TCGService],controllers: [TCGController],exports: [TCGService],})export class TCGModule {}
