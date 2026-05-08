@@ -32,8 +32,8 @@ $user = $auth->getCurrentUser();
                     <a href="/php/pages/decks.php">Decks</a>
                     <a href="/php/pages/poketmon/index.php">Poketmon</a>
                     <a href="/php/pages/trading.php">Trading</a>
-                <a href="/php/pages/shop.php">Shop</a>
-                <a href="/php/pages/rewards.php">Rewards</a>
+                    <a href="/php/pages/shop.php">Shop</a>
+                    <a href="/php/pages/rewards.php">Rewards</a>
                     <a href="/php/pages/logout.php" class="btn-logout">Logout</a>
                 <?php else: ?>
                     <a href="/php/pages/login.php" class="btn-login">Login</a>
