@@ -14,9 +14,11 @@ model User {
   passwordHash    String
   eloRating       Int       @default(1000)
   rankTier        String    @default("Bronze")
+  coins           Int       @default(0)
   createdAt       DateTime  @default(now())
   lastLogin       DateTime?
   lastDailyPack   DateTime?
+  lastDailyReward DateTime?
 
   inventory       Inventory[]
   decks           Deck[]
@@ -28,6 +30,7 @@ model User {
   packOpenings    PackOpening[]
   rankedTransfersWon   RankedTransfer[] @relation("Winner")
   rankedTransfersLost  RankedTransfer[] @relation("Loser")
+  achievements    UserAchievement[]
 
   @@index([email])
   @@index([username])
@@ -293,4 +296,39 @@ model TradeCard {
   @@index([tradeId])
   @@index([userId])
   @@index([cardId])
+}
+
+model Achievement {
+  id              String    @id @default(uuid())
+  category        String
+  level           Int
+  name            String
+  description     String
+  rewardCoins     Int
+  requiredValue   Int
+  icon            String    @default("🏆")
+
+  userAchievements UserAchievement[]
+
+  @@unique([category, level])
+  @@index([category])
+}
+
+model UserAchievement {
+  id              String    @id @default(uuid())
+  userId          String
+  achievementId   String
+  currentValue    Int       @default(0)
+  completed       Boolean   @default(false)
+  completedAt     DateTime?
+  claimed         Boolean   @default(false)
+  claimedAt       DateTime?
+
+  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement     Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([userId])
+  @@index([achievementId])
+  @@index([completed])
 }
