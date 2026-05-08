@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls -la /var/www/TCG/backend/src/modules/auth/)",
+      "Read(//var/www/TCG/backend/src/modules/**)"
+    ]
+  }
+}
