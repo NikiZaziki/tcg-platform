@@ -1,8 +1,15 @@
 <?php
-require_once 'config.php';
+/**
+ * Register Page
+ */
+
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../services/AuthService.php';
+
+$auth = new AuthService();
 
 // Redirect wenn bereits eingeloggt
-requireGuest();
+$auth->requireGuest();
 
 $error = '';
 $success = '';
@@ -28,20 +35,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($password !== $confirmPassword) {
         $error = 'Passwörter stimmen nicht überein';
     } else {
-        $result = apiCall('/auth/register', 'POST', [
-            'email' => $email,
-            'username' => $username,
-            'password' => $password
-        ]);
+        $result = $auth->register($email, $username, $password);
 
         logError("Registration result: " . json_encode($result));
 
-        if (isset($result['token'])) {
-            $_SESSION['token'] = $result['token'];
-            $_SESSION['user'] = $result['user'];
+        if ($result['success']) {
             logError("Registration successful for user: $username");
-            header('Location: dashboard.php');
-            exit;
+            redirect('/pages/dashboard.php');
         } else {
             $error = $result['error'] ?? 'Registrierung fehlgeschlagen';
             logError("Registration failed: $error");
@@ -55,15 +55,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Registrieren - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="login.php">Login</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/login.php">Login</a>
             </div>
         </div>
     </nav>
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Registrieren</button>
             </form>
             <p style="text-align: center; margin-top: 1rem; color: #a0a0a0;">
-                Bereits registriert? <a href="login.php" style="color: #e94560;">Einloggen</a>
+                Bereits registriert? <a href="/pages/login.php" style="color: #e94560;">Einloggen</a>
             </p>
         </div>
     </div>

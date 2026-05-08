@@ -1,23 +1,32 @@
 <?php
-require_once 'config.php';
+/**
+ * Poketmon Game Page
+ * Spiel-Interface für Poketmon
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../services/AuthService.php';
+require_once __DIR__ . '/../../services/MatchService.php';
+
+$auth = new AuthService();
+$matchService = new MatchService();
 
 // Login erforderlich
-$user = requireLogin();
+$user = $auth->requireLogin();
+$token = $auth->getToken();
 
 // Get match ID from URL
 $matchId = $_GET['id'] ?? null;
 
 if (!$matchId) {
-    header('Location: poketmon.php');
-    exit;
+    redirect('/pages/poketmon/index.php');
 }
 
 // Get match data
-$match = apiCall('/matches/' . $matchId, 'GET', null, $_SESSION['token']);
+$match = $matchService->getMatch($matchId, $token);
 
-if (!$match || isset($match['error'])) {
-    header('Location: poketmon.php');
-    exit;
+if (!$match) {
+    redirect('/pages/poketmon/index.php');
 }
 
 // Determine if user is player1 or player2
@@ -27,28 +36,21 @@ $opponentDeck = $isPlayer1 ? ($match['deck2'] ?? []) : ($match['deck1'] ?? []);
 $opponent = $isPlayer1 ? ($match['player2'] ?? []) : ($match['player1'] ?? []);
 
 // Get match history
-$history = apiCall('/matches/' . $matchId . '/history', 'GET', null, $_SESSION['token']);
+$history = $matchService->getMatchHistory($matchId, $token);
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'playCard':
-                $result = apiCall('/matches/' . $matchId . '/moves', 'POST', [
-                    'playerId' => $user['id'],
-                    'cardId' => $_POST['cardId'] ?? '',
-                    'position' => $_POST['position'] ?? 0,
-                ], $_SESSION['token']);
+                $result = $matchService->submitMove($matchId, $user['id'], $_POST['cardId'] ?? '', $_POST['position'] ?? 0, $token);
                 break;
             case 'endMatch':
-                $result = apiCall('/matches/' . $matchId . '/end', 'POST', [
-                    'winnerId' => $_POST['winnerId'] ?? ''
-                ], $_SESSION['token']);
-                header('Location: poketmon-result.php?id=' . $matchId);
-                exit;
+                $result = $matchService->endMatch($matchId, $_POST['winnerId'] ?? '', $token);
+                redirect('/pages/poketmon/result.php?id=' . $matchId);
+                break;
         }
-        header('Location: poketmon-game.php?id=' . $matchId);
-        exit;
+        redirect('/pages/poketmon/game.php?id=' . $matchId);
     }
 }
 ?>
@@ -58,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poketmon Spiel - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .game-board {
             display: grid;
@@ -172,10 +174,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             max-width: 400px;
         }
 
-        .battle-field-row {
-            display: contents;
-        }
-
         .player-info {
             text-align: center;
             margin-bottom: 1rem;
@@ -255,39 +253,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: rgba(255, 255, 255, 0.1);
             color: #a0a0a0;
         }
-
-        .card-preview {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(26, 26, 46, 0.95);
-            border: 2px solid #e94560;
-            border-radius: 1rem;
-            padding: 2rem;
-            z-index: 1000;
-            display: none;
-            min-width: 300px;
-        }
-
-        .card-preview.show {
-            display: block;
-        }
-
-        .card-preview-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 999;
-            display: none;
-        }
-
-        .card-preview-overlay.show {
-            display: block;
-        }
     </style>
 </head>
 <body>
@@ -295,15 +260,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="dashboard.php">Dashboard</a>
-                <a href="collection.php">Collection</a>
-                <a href="decks.php">Decks</a>
-                <a href="poketmon.php" class="active">Poketmon</a>
-                <a href="trading.php">Trading</a>
-                <a href="shop.php">Shop</a>
-                <a href="rewards.php">Rewards</a>
-                <a href="logout.php" class="btn-logout">Logout</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/dashboard.php">Dashboard</a>
+                <a href="/pages/collection.php">Collection</a>
+                <a href="/pages/decks.php">Decks</a>
+                <a href="/pages/poketmon/index.php" class="active">Poketmon</a>
+                <a href="/pages/trading.php">Trading</a>
+                <a href="/pages/shop.php">Shop</a>
+                <a href="/pages/rewards.php">Rewards</a>
+                <a href="/pages/logout.php" class="btn-logout">Logout</a>
             </div>
         </div>
     </nav>
@@ -316,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </span></h1>
                 <p style="color: #a0a0a0;">Match ID: <?php echo htmlspecialchars(substr($matchId ?? '', 0, 8)); ?>...</p>
             </div>
-            <a href="poketmon.php" class="btn btn-secondary">Verlassen</a>
+            <a href="/pages/poketmon/index.php" class="btn btn-secondary">Verlassen</a>
         </div>
 
         <?php if (($match['status'] ?? '') === 'active'): ?>
@@ -448,7 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <p style="color: #a0a0a0; margin-bottom: 2rem;">
                     Status: <?php echo ucfirst($match['status'] ?? 'Unknown'); ?>
                 </p>
-                <a href="poketmon-result.php?id=<?php echo htmlspecialchars($matchId ?? ''); ?>" class="btn btn-primary">
+                <a href="/pages/poketmon/result.php?id=<?php echo htmlspecialchars($matchId ?? ''); ?>" class="btn btn-primary">
                     Ergebnisse anzeigen
                 </a>
             </div>

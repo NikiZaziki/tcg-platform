@@ -1,25 +1,30 @@
 <?php
-require_once 'config.php';
+/**
+ * Dashboard Page
+ */
+
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../services/AuthService.php';
+require_once __DIR__ . '/../services/InventoryService.php';
+require_once __DIR__ . '/../services/DeckService.php';
+require_once __DIR__ . '/../services/MatchService.php';
+require_once __DIR__ . '/../services/RewardService.php';
+
+$auth = new AuthService();
+$inventoryService = new InventoryService();
+$deckService = new DeckService();
+$matchService = new MatchService();
+$rewardService = new RewardService();
 
 // Login erforderlich
-$user = requireLogin();
+$user = $auth->requireLogin();
+$token = $auth->getToken();
 
 // Daten laden
-$inventory = apiCall('/inventory', 'GET', null, $_SESSION['token']);
-$decks = apiCall('/decks', 'GET', null, $_SESSION['token']);
-$matches = apiCall('/matches', 'GET', null, $_SESSION['token']);
-$rewards = apiCall('/rewards/daily', 'GET', null, $_SESSION['token']);
-
-// Filter matches by user
-$userMatches = [];
-if ($matches && is_array($matches)) {
-    foreach ($matches as $match) {
-        if (($match['player1']['id'] ?? '') === ($user['id'] ?? '') ||
-            ($match['player2']['id'] ?? '') === ($user['id'] ?? '')) {
-            $userMatches[] = $match;
-        }
-    }
-}
+$inventory = $inventoryService->getInventory($token);
+$decks = $deckService->getAllDecks($token);
+$matches = $matchService->getUserMatches($user['id'], $token);
+$rewards = $rewardService->getDailyReward($token);
 
 // Calculate ranked stats
 $rankedStats = [
@@ -28,10 +33,10 @@ $rankedStats = [
     'total' => 0
 ];
 
-foreach ($userMatches as $match) {
+foreach ($matches as $match) {
     if (($match['mode'] ?? '') === 'ranked' && ($match['status'] ?? '') === 'finished') {
         $rankedStats['total']++;
-        if (($match['winnerId'] ?? '') === ($user['id'] ?? '')) {
+        if (($match['winnerId'] ?? '') === $user['id']) {
             $rankedStats['wins']++;
         } else {
             $rankedStats['losses']++;
@@ -45,7 +50,7 @@ foreach ($userMatches as $match) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .rank-badge {
             display: inline-block;
@@ -55,45 +60,14 @@ foreach ($userMatches as $match) {
             font-weight: bold;
         }
 
-        .rank-badge.bronze {
-            background: #cd7f32;
-            color: #fff;
-        }
-
-        .rank-badge.silver {
-            background: #c0c0c0;
-            color: #000;
-        }
-
-        .rank-badge.gold {
-            background: #ffd700;
-            color: #000;
-        }
-
-        .rank-badge.platinum {
-            background: #e5e4e2;
-            color: #000;
-        }
-
-        .rank-badge.diamond {
-            background: #b9f2ff;
-            color: #000;
-        }
-
-        .rank-badge.master {
-            background: #9b59b6;
-            color: #fff;
-        }
-
-        .rank-badge.grandmaster {
-            background: #e74c3c;
-            color: #fff;
-        }
-
-        .rank-badge.challenger {
-            background: linear-gradient(135deg, #e74c3c, #f39c12);
-            color: #fff;
-        }
+        .rank-badge.bronze { background: #cd7f32; color: #fff; }
+        .rank-badge.silver { background: #c0c0c0; color: #000; }
+        .rank-badge.gold { background: #ffd700; color: #000; }
+        .rank-badge.platinum { background: #e5e4e2; color: #000; }
+        .rank-badge.diamond { background: #b9f2ff; color: #000; }
+        .rank-badge.master { background: #9b59b6; color: #fff; }
+        .rank-badge.grandmaster { background: #e74c3c; color: #fff; }
+        .rank-badge.challenger { background: linear-gradient(135deg, #e74c3c, #f39c12); color: #fff; }
 
         .quick-action {
             background: linear-gradient(135deg, #1a1a2e, #16213e);
@@ -159,15 +133,15 @@ foreach ($userMatches as $match) {
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="dashboard.php" class="active">Dashboard</a>
-                <a href="collection.php">Collection</a>
-                <a href="decks.php">Decks</a>
-                <a href="poketmon.php" class="active">Poketmon</a>
-                <a href="trading.php">Trading</a>
-                <a href="shop.php">Shop</a>
-                <a href="rewards.php">Rewards</a>
-                <a href="logout.php" class="btn-logout">Logout</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/dashboard.php" class="active">Dashboard</a>
+                <a href="/pages/collection.php">Collection</a>
+                <a href="/pages/decks.php">Decks</a>
+                <a href="/pages/poketmon/index.php" class="active">Poketmon</a>
+                <a href="/pages/trading.php">Trading</a>
+                <a href="/pages/shop.php">Shop</a>
+                <a href="/pages/rewards.php">Rewards</a>
+                <a href="/pages/logout.php" class="btn-logout">Logout</a>
             </div>
         </div>
     </nav>
@@ -183,7 +157,7 @@ foreach ($userMatches as $match) {
                     | ELO: <?php echo htmlspecialchars($user['eloRating'] ?? 1000); ?>
                 </p>
             </div>
-            <a href="poketmon.php" class="btn btn-primary">🎮 Poketmon spielen</a>
+            <a href="/pages/poketmon/index.php" class="btn btn-primary">🎮 Poketmon spielen</a>
         </div>
 
         <div class="stats">
@@ -207,7 +181,7 @@ foreach ($userMatches as $match) {
 
         <?php
         // Check for active matches
-        $activeMatches = array_filter($userMatches, function($match) {
+        $activeMatches = array_filter($matches, function($match) {
             return ($match['status'] ?? '') === 'active';
         });
         ?>
@@ -217,7 +191,7 @@ foreach ($userMatches as $match) {
                 <h2 style="margin-bottom: 1rem;">⚔️ Aktive Matches</h2>
                 <?php foreach ($activeMatches as $match): ?>
                     <?php
-                    $isPlayer1 = ($match['player1']['id'] ?? '') === ($user['id'] ?? '');
+                    $isPlayer1 = ($match['player1']['id'] ?? '') === $user['id'];
                     $opponent = $isPlayer1 ? ($match['player2'] ?? []) : ($match['player1'] ?? []);
                     ?>
                     <div class="active-match">
@@ -228,7 +202,7 @@ foreach ($userMatches as $match) {
                                     <?php echo ucfirst($match['mode'] ?? 'Unranked'); ?>
                                 </span>
                             </div>
-                            <a href="poketmon-game.php?id=<?php echo htmlspecialchars($match['id'] ?? ''); ?>" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                            <a href="/pages/poketmon/game.php?id=<?php echo htmlspecialchars($match['id'] ?? ''); ?>" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                 Spielen
                             </a>
                         </div>
@@ -240,25 +214,25 @@ foreach ($userMatches as $match) {
         <div class="card">
             <h2>Schnellaktionen</h2>
             <div class="grid">
-                <a href="poketmon.php" class="quick-action">
+                <a href="/pages/poketmon/index.php" class="quick-action">
                     <div class="quick-action-icon">🎮</div>
                     <div class="quick-action-title">Poketmon spielen</div>
                     <div class="quick-action-desc">Ranked & Unranked Matches</div>
                 </a>
 
-                <a href="decks.php" class="quick-action">
+                <a href="/pages/decks.php" class="quick-action">
                     <div class="quick-action-icon">🃏</div>
                     <div class="quick-action-title">Deck erstellen</div>
                     <div class="quick-action-desc">Baue dein perfektes Deck</div>
                 </a>
 
-                <a href="shop.php" class="quick-action">
+                <a href="/pages/shop.php" class="quick-action">
                     <div class="quick-action-icon">📦</div>
                     <div class="quick-action-title">Booster Packs</div>
                     <div class="quick-action-desc">Karten kaufen</div>
                 </a>
 
-                <a href="poketmon-ranks.php" class="quick-action">
+                <a href="/pages/poketmon/ranks.php" class="quick-action">
                     <div class="quick-action-icon">🏆</div>
                     <div class="quick-action-title">Ränge & Statistiken</div>
                     <div class="quick-action-desc">Dein Fortschritt</div>
@@ -269,11 +243,11 @@ foreach ($userMatches as $match) {
         <div class="card">
             <h2>Letzte Aktivitäten</h2>
             <ul style="list-style: none; padding: 0;">
-                <?php if (count($userMatches) > 0): ?>
-                    <?php foreach (array_slice($userMatches, 0, 3) as $match): ?>
+                <?php if (count($matches) > 0): ?>
+                    <?php foreach (array_slice($matches, 0, 3) as $match): ?>
                         <?php
-                        $isWinner = ($match['winnerId'] ?? '') === ($user['id'] ?? '');
-                        $isPlayer1 = ($match['player1']['id'] ?? '') === ($user['id'] ?? '');
+                        $isWinner = ($match['winnerId'] ?? '') === $user['id'];
+                        $isPlayer1 = ($match['player1']['id'] ?? '') === $user['id'];
                         $opponent = $isPlayer1 ? ($match['player2']['username'] ?? 'Unknown') : ($match['player1']['username'] ?? 'Unknown');
                         ?>
                         <li style="padding: 0.75rem 0; border-bottom: 1px solid rgba(255,255,255,0.1);">

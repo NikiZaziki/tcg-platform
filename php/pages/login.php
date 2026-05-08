@@ -1,8 +1,15 @@
 <?php
-require_once 'config.php';
+/**
+ * Login Page
+ */
+
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../services/AuthService.php';
+
+$auth = new AuthService();
 
 // Redirect wenn bereits eingeloggt
-requireGuest();
+$auth->requireGuest();
 
 $error = '';
 
@@ -16,19 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         logError("Login attempt for user: $username");
 
-        $result = apiCall('/auth/login', 'POST', [
-            'email' => $username,
-            'password' => $password
-        ]);
+        $result = $auth->login($username, $password);
 
         logError("Login result: " . json_encode($result));
 
-        if (isset($result['token'])) {
-            $_SESSION['token'] = $result['token'];
-            $_SESSION['user'] = $result['user'];
+        if ($result['success']) {
             logError("Login successful for user: $username");
-            header('Location: dashboard.php');
-            exit;
+            redirect('/pages/dashboard.php');
         } else {
             $error = $result['error'] ?? 'Login fehlgeschlagen';
             logError("Login failed: $error");
@@ -42,15 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
     <nav class="navbar">
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="register.php">Registrieren</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/register.php">Registrieren</a>
             </div>
         </div>
     </nav>
@@ -73,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <button type="submit" class="btn btn-primary" style="width: 100%;">Einloggen</button>
             </form>
             <p style="text-align: center; margin-top: 1rem; color: #a0a0a0;">
-                Noch kein Account? <a href="register.php" style="color: #e94560;">Registrieren</a>
+                Noch kein Account? <a href="/pages/register.php" style="color: #e94560;">Registrieren</a>
             </p>
         </div>
     </div>

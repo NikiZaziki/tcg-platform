@@ -1,23 +1,32 @@
 <?php
-require_once 'config.php';
+/**
+ * Poketmon Result Page
+ * Ergebnisse und Karten-Transfer
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../services/AuthService.php';
+require_once __DIR__ . '/../../services/MatchService.php';
+
+$auth = new AuthService();
+$matchService = new MatchService();
 
 // Login erforderlich
-$user = requireLogin();
+$user = $auth->requireLogin();
+$token = $auth->getToken();
 
 // Get match ID from URL
 $matchId = $_GET['id'] ?? null;
 
 if (!$matchId) {
-    header('Location: poketmon.php');
-    exit;
+    redirect('/pages/poketmon/index.php');
 }
 
 // Get match data
-$match = apiCall('/matches/' . $matchId, 'GET', null, $_SESSION['token']);
+$match = $matchService->getMatch($matchId, $token);
 
-if (!$match || isset($match['error'])) {
-    header('Location: poketmon.php');
-    exit;
+if (!$match) {
+    redirect('/pages/poketmon/index.php');
 }
 
 // Determine if user is winner
@@ -27,21 +36,13 @@ $playerDeck = $isPlayer1 ? ($match['deck1'] ?? []) : ($match['deck2'] ?? []);
 $opponent = $isPlayer1 ? ($match['player2'] ?? []) : ($match['player1'] ?? []);
 
 // Get match history
-$history = apiCall('/matches/' . $matchId . '/history', 'GET', null, $_SESSION['token']);
-
-// Get ranked transfer info if ranked match
-$rankedTransfer = null;
-if (($match['mode'] ?? '') === 'ranked' && ($match['status'] ?? '') === 'finished') {
-    // This would be implemented in the backend
-    // For now, we'll show a placeholder
-}
+$history = $matchService->getMatchHistory($matchId, $token);
 
 // Handle card selection for ranked transfer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'selectCard') {
     // This would call the backend to process the card transfer
     // For now, we'll just redirect
-    header('Location: poketmon.php');
-    exit;
+    redirect('/pages/poketmon/index.php');
 }
 ?>
 <!DOCTYPE html>
@@ -50,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poketmon Ergebnis - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .result-container {
             text-align: center;
@@ -197,15 +198,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="dashboard.php">Dashboard</a>
-                <a href="collection.php">Collection</a>
-                <a href="decks.php">Decks</a>
-                <a href="poketmon.php" class="active">Poketmon</a>
-                <a href="trading.php">Trading</a>
-                <a href="shop.php">Shop</a>
-                <a href="rewards.php">Rewards</a>
-                <a href="logout.php" class="btn-logout">Logout</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/dashboard.php">Dashboard</a>
+                <a href="/pages/collection.php">Collection</a>
+                <a href="/pages/decks.php">Decks</a>
+                <a href="/pages/poketmon/index.php" class="active">Poketmon</a>
+                <a href="/pages/trading.php">Trading</a>
+                <a href="/pages/shop.php">Shop</a>
+                <a href="/pages/rewards.php">Rewards</a>
+                <a href="/pages/logout.php" class="btn-logout">Logout</a>
             </div>
         </div>
     </nav>
@@ -310,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 </div>
             <?php endif; ?>
 
-            <div class="card" style="margin-top: 2rem;">
+            <div class="card">
                 <h2>Spielverlauf</h2>
                 <?php if ($history && is_array($history) && count($history) > 0): ?>
                     <div style="max-height: 200px; overflow-y: auto;">
@@ -329,8 +330,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             </div>
 
             <div style="margin-top: 2rem;">
-                <a href="poketmon.php" class="btn btn-primary">Weiteres Match</a>
-                <a href="dashboard.php" class="btn btn-secondary" style="margin-left: 1rem;">Zum Dashboard</a>
+                <a href="/pages/poketmon/index.php" class="btn btn-primary">Weiteres Match</a>
+                <a href="/pages/dashboard.php" class="btn btn-secondary" style="margin-left: 1rem;">Zum Dashboard</a>
             </div>
         </div>
     </div>

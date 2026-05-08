@@ -1,40 +1,50 @@
 <?php
-require_once 'config.php';
+/**
+ * Poketmon Main Page
+ * Matchmaking mit Ranked/Unranked
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../services/AuthService.php';
+require_once __DIR__ . '/../../services/DeckService.php';
+require_once __DIR__ . '/../../services/MatchmakingService.php';
+require_once __DIR__ . '/../../services/MatchService.php';
+
+$auth = new AuthService();
+$deckService = new DeckService();
+$matchmakingService = new MatchmakingService();
+$matchService = new MatchService();
 
 // Login erforderlich
-$user = requireLogin();
+$user = $auth->requireLogin();
+$token = $auth->getToken();
 
 // TCG ID für Poketmon (muss in der Datenbank existieren)
-$POKETMON_TCG_ID = 'poketmon-tcg-id'; // Wird später durch echte ID ersetzt
+$POKETMON_TCG_ID = 'poketmon-tcg-id';
 
 // Decks laden
-$decks = apiCall('/decks', 'GET', null, $_SESSION['token']);
+$decks = $deckService->getAllDecks($token);
 
 // Matchmaking Status prüfen
-$queueStatus = apiCall('/matchmaking/status', 'GET', null, $_SESSION['token']);
+$queueStatus = $matchmakingService->getQueueStatus($token);
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'joinQueue':
-                $result = apiCall('/matchmaking/queue', 'POST', [
-                    'tcgId' => $POKETMON_TCG_ID,
-                    'mode' => $_POST['mode'] ?? 'unranked',
-                    'deckId' => $_POST['deckId'] ?? ''
-                ], $_SESSION['token']);
+                $result = $matchmakingService->joinQueue($POKETMON_TCG_ID, $_POST['mode'] ?? 'unranked', $_POST['deckId'] ?? '', $token);
                 break;
             case 'leaveQueue':
-                $result = apiCall('/matchmaking/queue', 'DELETE', null, $_SESSION['token']);
+                $result = $matchmakingService->leaveQueue($token);
                 break;
         }
-        header('Location: poketmon.php');
-        exit;
+        redirect('/pages/poketmon/index.php');
     }
 }
 
 // Aktive Matches laden
-$activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
+$activeMatches = $matchService->getActiveMatches($user['id'], $token);
 ?>
 <!DOCTYPE html>
 <html lang="de">
@@ -42,7 +52,7 @@ $activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poketmon - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .mode-selector {
             display: flex;
@@ -139,45 +149,14 @@ $activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
             font-weight: bold;
         }
 
-        .rank-badge.bronze {
-            background: #cd7f32;
-            color: #fff;
-        }
-
-        .rank-badge.silver {
-            background: #c0c0c0;
-            color: #000;
-        }
-
-        .rank-badge.gold {
-            background: #ffd700;
-            color: #000;
-        }
-
-        .rank-badge.platinum {
-            background: #e5e4e2;
-            color: #000;
-        }
-
-        .rank-badge.diamond {
-            background: #b9f2ff;
-            color: #000;
-        }
-
-        .rank-badge.master {
-            background: #9b59b6;
-            color: #fff;
-        }
-
-        .rank-badge.grandmaster {
-            background: #e74c3c;
-            color: #fff;
-        }
-
-        .rank-badge.challenger {
-            background: linear-gradient(135deg, #e74c3c, #f39c12);
-            color: #fff;
-        }
+        .rank-badge.bronze { background: #cd7f32; color: #fff; }
+        .rank-badge.silver { background: #c0c0c0; color: #000; }
+        .rank-badge.gold { background: #ffd700; color: #000; }
+        .rank-badge.platinum { background: #e5e4e2; color: #000; }
+        .rank-badge.diamond { background: #b9f2ff; color: #000; }
+        .rank-badge.master { background: #9b59b6; color: #fff; }
+        .rank-badge.grandmaster { background: #e74c3c; color: #fff; }
+        .rank-badge.challenger { background: linear-gradient(135deg, #e74c3c, #f39c12); color: #fff; }
     </style>
 </head>
 <body>
@@ -185,15 +164,15 @@ $activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="dashboard.php">Dashboard</a>
-                <a href="collection.php">Collection</a>
-                <a href="decks.php">Decks</a>
-                <a href="matches.php" class="active">Poketmon</a>
-                <a href="trading.php">Trading</a>
-                <a href="shop.php">Shop</a>
-                <a href="rewards.php">Rewards</a>
-                <a href="logout.php" class="btn-logout">Logout</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/dashboard.php">Dashboard</a>
+                <a href="/pages/collection.php">Collection</a>
+                <a href="/pages/decks.php">Decks</a>
+                <a href="/pages/poketmon/index.php" class="active">Poketmon</a>
+                <a href="/pages/trading.php">Trading</a>
+                <a href="/pages/shop.php">Shop</a>
+                <a href="/pages/rewards.php">Rewards</a>
+                <a href="/pages/logout.php" class="btn-logout">Logout</a>
             </div>
         </div>
     </nav>
@@ -306,7 +285,6 @@ $activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
                     </thead>
                     <tbody>
                         <?php foreach ($activeMatches as $match): ?>
-                            <?php if (($match['status'] ?? '') === 'active'): ?>
                             <tr>
                                 <td>
                                     <?php echo htmlspecialchars(
@@ -326,12 +304,11 @@ $activeMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
                                     </span>
                                 </td>
                                 <td>
-                                    <a href="poketmon-game.php?id=<?php echo htmlspecialchars($match['id'] ?? ''); ?>" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
+                                    <a href="/pages/poketmon/game.php?id=<?php echo htmlspecialchars($match['id'] ?? ''); ?>" class="btn btn-primary" style="padding: 0.5rem 1rem; font-size: 0.875rem;">
                                         Spielen
                                     </a>
                                 </td>
                             </tr>
-                            <?php endif; ?>
                         <?php endforeach; ?>
                     </tbody>
                 </table>

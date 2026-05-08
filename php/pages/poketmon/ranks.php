@@ -1,11 +1,22 @@
 <?php
-require_once 'config.php';
+/**
+ * Poketmon Ranks Page
+ * Ränge und Statistiken
+ */
+
+require_once __DIR__ . '/../../config/config.php';
+require_once __DIR__ . '/../../services/AuthService.php';
+require_once __DIR__ . '/../../services/MatchService.php';
+
+$auth = new AuthService();
+$matchService = new MatchService();
 
 // Login erforderlich
-$user = requireLogin();
+$user = $auth->requireLogin();
+$token = $auth->getToken();
 
 // Get all matches
-$allMatches = apiCall('/matches', 'GET', null, $_SESSION['token']);
+$allMatches = $matchService->getAllMatches($token);
 
 // Filter matches by user
 $userMatches = [];
@@ -81,7 +92,7 @@ if ($nextRank) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Poketmon Ränge - TCG Platform</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/assets/css/style.css">
     <style>
         .rank-overview {
             display: grid;
@@ -266,15 +277,15 @@ if ($nextRank) {
         <div class="nav-container">
             <div class="nav-brand">TCG Platform</div>
             <div class="nav-links">
-                <a href="index.php">Home</a>
-                <a href="dashboard.php">Dashboard</a>
-                <a href="collection.php">Collection</a>
-                <a href="decks.php">Decks</a>
-                <a href="poketmon.php" class="active">Poketmon</a>
-                <a href="trading.php">Trading</a>
-                <a href="shop.php">Shop</a>
-                <a href="rewards.php">Rewards</a>
-                <a href="logout.php" class="btn-logout">Logout</a>
+                <a href="/pages/index.php">Home</a>
+                <a href="/pages/dashboard.php">Dashboard</a>
+                <a href="/pages/collection.php">Collection</a>
+                <a href="/pages/decks.php">Decks</a>
+                <a href="/pages/poketmon/index.php" class="active">Poketmon</a>
+                <a href="/pages/trading.php">Trading</a>
+                <a href="/pages/shop.php">Shop</a>
+                <a href="/pages/rewards.php">Rewards</a>
+                <a href="/pages/logout.php" class="btn-logout">Logout</a>
             </div>
         </div>
     </nav>
@@ -306,34 +317,36 @@ if ($nextRank) {
                 <?php endif; ?>
             </div>
 
-            <div class="rank-card">
-                <div class="rank-icon">📊</div>
-                <div class="rank-name">Ranked Statistiken</div>
-                <div class="rank-elo" style="color: #4ade80;">
-                    <?php echo $rankedStats['wins']; ?>
+            <div class="rank-overview">
+                <div class="rank-card">
+                    <div class="rank-icon">📊</div>
+                    <div class="rank-name">Ranked Statistiken</div>
+                    <div class="rank-elo" style="color: #4ade80;">
+                        <?php echo $rankedStats['wins']; ?>
+                    </div>
+                    <div class="stat-label">Siege</div>
+                    <div class="rank-elo" style="color: #f87171; margin-top: 1rem;">
+                        <?php echo $rankedStats['losses']; ?>
+                    </div>
+                    <div class="stat-label">Niederlagen</div>
+                    <div class="rank-elo" style="color: #fbbf24; margin-top: 1rem;">
+                        <?php echo $rankedStats['winRate']; ?>%
+                    </div>
+                    <div class="stat-label">Win Rate</div>
                 </div>
-                <div class="stat-label">Siege</div>
-                <div class="rank-elo" style="color: #f87171; margin-top: 1rem;">
-                    <?php echo $rankedStats['losses']; ?>
-                </div>
-                <div class="stat-label">Niederlagen</div>
-                <div class="rank-elo" style="color: #fbbf24; margin-top: 1rem;">
-                    <?php echo $rankedStats['winRate']; ?>%
-                </div>
-                <div class="stat-label">Win Rate</div>
-            </div>
 
-            <div class="rank-card">
-                <div class="rank-icon">🎮</div>
-                <div class="rank-name">Gesamt Matches</div>
-                <div class="rank-elo">
-                    <?php echo count($userMatches); ?>
+                <div class="rank-card">
+                    <div class="rank-icon">🎮</div>
+                    <div class="rank-name">Gesamt Matches</div>
+                    <div class="rank-elo">
+                        <?php echo count($userMatches); ?>
+                    </div>
+                    <div class="stat-label">Alle Matches</div>
+                    <div class="rank-elo" style="color: #e94560; margin-top: 1rem;">
+                        <?php echo $rankedStats['total']; ?>
+                    </div>
+                    <div class="stat-label">Ranked Matches</div>
                 </div>
-                <div class="stat-label">Alle Matches</div>
-                <div class="rank-elo" style="color: #e94560; margin-top: 1rem;">
-                    <?php echo $rankedStats['total']; ?>
-                </div>
-                <div class="stat-label">Ranked Matches</div>
             </div>
         </div>
 
@@ -430,8 +443,8 @@ if ($nextRank) {
         </div>
 
         <div style="text-align: center; margin-top: 2rem;">
-            <a href="poketmon.php" class="btn btn-primary">Neues Match starten</a>
-            <a href="dashboard.php" class="btn btn-secondary" style="margin-left: 1rem;">Zum Dashboard</a>
+            <a href="/pages/poketmon/index.php" class="btn btn-primary">Neues Match starten</a>
+            <a href="/pages/dashboard.php" class="btn btn-secondary" style="margin-left: 1rem;">Zum Dashboard</a>
         </div>
     </div>
 </body>
